@@ -61,12 +61,14 @@ where s.store_id  in (
 --которые взяли в аренду за всё время наибольшее количество фильмов
 
 
-select  p.customer_id, sum(p.amount) as total_amount
-from payment p
-group by p.customer_id 
-order by total_amount desc 
-limit 10
+	
 
+
+select r.customer_id, count(1) as film_count 
+from inventory i 
+join rental r on r.inventory_id  = i.inventory_id 
+group by r.customer_id
+order by film_count asc limit 5
 
 
 
@@ -78,15 +80,14 @@ limit 10
 --  4. максимальное значение платежа за аренду фильма
 
 
-select p.customer_id, 
-	count(p.payment_id) as total_count_film, 
-	sum(p.amount) as total_amount, 
-	min(p.amount) as min_amount, 
-	max(p.amount) as max_amount
-from payment p 
-group by p.customer_id 
 
 
+select r.customer_id, count(i.film_id) as film_count, round(sum(p.amount),0) as total_payment, min(p.amount) as min_payment, max(p.amount) max_payment
+from inventory i 
+join rental r on r.inventory_id  = i.inventory_id 
+join payment p  on p.rental_id  = r.rental_id 
+group by r.customer_id
+order by film_count asc 
 
 
 
@@ -107,7 +108,7 @@ where c.city <> c2.city
 --вычислите для каждого покупателя среднее количество дней, за которые покупатель возвращает фильмы.
  
 
-select r.customer_id, sum(r.return_date::date - r.rental_date::date) as diff_days
+select r.customer_id, avg( (r.return_date::date - r.rental_date::date))
 from rental r 
 group by r.customer_id 
 
