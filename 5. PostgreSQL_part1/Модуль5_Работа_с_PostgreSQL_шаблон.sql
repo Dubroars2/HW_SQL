@@ -9,8 +9,8 @@ SET search_path TO public;
 --Пронумеруйте все продажи от 1 до N по дате продажи.
 
 
-select  p.amount, p.payment_date,
-	row_number() over (partition by p.customer_id order by p.payment_date)
+
+select row_number() over (order by p.payment_date), p.payment_id , p.payment_date 
 from payment p 
 
 
