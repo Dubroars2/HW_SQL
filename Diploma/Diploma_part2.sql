@@ -86,55 +86,23 @@ cte_general.seat_boarding,
 total_seats - cte_general.seat_boarding as free_seats,
 concat(round((total_seats - cte_general.seat_boarding) / total_seats::numeric , 2)*100, '%') 
 as free_share_of_total,
-	sum (cte_general.seat_boarding) over (partition by  cte_general.departure_airport, cte_general.actual_departure order by  cte_general.actual_departure)
+	sum (cte_general.seat_boarding) over (
+	partition by cte_general.departure_airport,  date_part('day', cte_general.actual_departure) order by cte_general.actual_departure)
 from cte_general
 left join cte_seats cs on cs.aircraft_code = cte_general.aircraft_code
 
 
 
-select date_trunc('day', f.actual_arrival)
-from flights f 
-where f.actual_arrival is not null
-
-with cte_general as(
-	select  f.flight_no , count( bp.seat_no) as seat_boarding, 
-	f.aircraft_code, 
-	f.actual_departure,
-	f.departure_airport
-	from flights f 
-	left join ticket_flights tf on tf.flight_id = f.flight_id 
-	left join boarding_passes bp on bp.flight_id  = tf.flight_id and bp.ticket_no  = tf.ticket_no 
-	left join aircrafts a on a.aircraft_code  = f.aircraft_code 
-	where f.status = 'Departed' or f.status = 'Arrived'
-	group by f.flight_id), 
-		cte_seats as(
-		select  a.aircraft_code ,  count(s.seat_no) as total_seats
-		from aircrafts a  
-		left join seats s on s.aircraft_code  = a.aircraft_code 
-		group by a.aircraft_code )	
-select 
-cte_general.actual_departure,
-cte_general.departure_airport,
-cte_general.flight_no,
-cte_general.seat_boarding,
-total_seats - cte_general.seat_boarding as free_seats,
-concat(round((total_seats - cte_general.seat_boarding) / total_seats::numeric , 2)*100, '%') 
-as free_share_of_total,
-	sum (cte_general.seat_boarding) over (partition by cte_general.departure_airport order by cte_general.actual_departure)
-from cte_general
-left join cte_seats cs on cs.aircraft_code = cte_general.aircraft_code
 
 	
 6. Найдите процентное соотношение перелетов по типам самолетов от общего количества.
--- Подзапрос
--- Оператор ROUND
 
-а) Вывел все типы самолетов
-б) Добавил кол-во полетов (полеты = кол-во рейсов, которые состоялись)
-в) Нашел долю. Поделил кол-во рейсов данной модели на общее кол-во рейсво через оконную функцию 
+
+Минус 5 баллов.
+В результате должны быть проценты, а не дробные значения.
 
 select   f.aircraft_code,
-	round(count(f.flight_no) / sum(count(f.flight_no)) over (),2)  as share_of_total
+	concat( round(count(f.flight_no) / sum(count(f.flight_no)) over (),2) *100, '%') as share_of_total
 from flights f 
 where f.status = 'Departed' or f.status = 'Arrived'   
 group by f.aircraft_code 
@@ -143,34 +111,30 @@ group by f.aircraft_code
 7. Были ли города, в которые можно  добраться бизнес - классом дешевле, чем эконом-классом в рамках перелета?
 -- CTE
 
---Ответ нет, таких городов нет
+Минус 15 баллов.
+Не логично сравнивать минимальную стоимость эконома с минимальной стоимостью бизнеса, что бы найти, где эконом был дороже бизнеса.
+Из результата нужно убрать избыточность, должен быть уникальный список городов.
 
-1. Делаю СТЕ и нахожу минимальную цену для бизнес класса в рамках перелета
-2. Делаю СТЕ и нахожу минимальную цену для эконом класса в рамках перелета
-3. Вывожу и джойню сте для бизнес класс и эконом, чтобы получить минимальные суммы за перелет по этим категориям
-4. Делаю фильтр, если минимальная сумма за перелет за бизнес больше мин суммы эконом
 
-	with cte_business as (
-	select distinct a.city as city_arrival, b.city as city_departure, tf.amount, tf.fare_conditions, f.flight_no , f.flight_id ,
-		min(tf.amount) over (partition by f.flight_id) as min_business
-	from flights f 
-	left join ticket_flights tf on tf.flight_id = f.flight_id 
-	left join airports a on a.airport_code  = f.arrival_airport 
-	left join airports b on b.airport_code  = f.departure_airport 
-	where tf.fare_conditions = 'Business' ),
-cte_economy as (
-	select  distinct a.city as city_arrival, b.city as city_departure, tf.amount, tf.fare_conditions, f.flight_no ,
-		min(tf.amount) over (partition by f.flight_id) as min_economy
-	from flights f 
-	left join ticket_flights tf on tf.flight_id = f.flight_id 
-	left join airports a on a.airport_code  = f.arrival_airport 
-	left join airports b on b.airport_code  = f.departure_airport 
-	where  tf.fare_conditions = 'Economy' )
-select bs.flight_no, bs.city_arrival, bs.city_departure, bs.fare_conditions,  bs.min_business, e.min_economy
-	from cte_business bs
-join cte_economy e on e.flight_no = bs.flight_no
-where bs.min_business < e.min_economy
-	
+--Таких городов нет
+
+
+with CTE_business as (
+	select distinct  f.flight_no , f.departure_airport , f.arrival_airport ,  tf.amount as amount_business
+	from ticket_flights tf 
+	join flights f on f.flight_id = tf.flight_id
+	where tf.fare_conditions  = 'Business')
+select distinct   a.city
+from ticket_flights tf 
+join flights f on f.flight_id = tf.flight_id
+join CTE_business b on b.flight_no = f.flight_no 
+join bookings.airports a on a.airport_code  = f.arrival_airport 
+where tf.amount - b.amount_business > 0
+
+
+
+
+
 
 8. Между какими городами нет прямых рейсов?
  - Декартово произведение в предложении FROM
